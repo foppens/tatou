@@ -186,3 +186,24 @@ def isolated_client():
         # Patch STORAGE_DIR for this client only
         client.application.config["STORAGE_DIR"] = str(storage_root)
         yield client, storage_root
+
+@pytest.fixture
+def auth_headers_unit(client):
+    """
+    Authentication headers for unit tests.
+    Bypasses HTTP login and uses the same token mechanism as the app.
+    """
+    from itsdangerous import URLSafeTimedSerializer
+
+    serializer = URLSafeTimedSerializer(
+        client.application.config["SECRET_KEY"],
+        salt="tatou-auth"
+    )
+
+    token = serializer.dumps({
+        "uid": 1,
+        "login": "testuser",
+        "email": "test@example.com",
+    })
+
+    return {"Authorization": f"Bearer {token}"}

@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, ForeignKey, Text
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, ForeignKey, Text, text
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 import os
@@ -8,26 +8,34 @@ _metadata = MetaData()
 
 # Table definitions
 Users = Table(
-    'Users', _metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('username', String(64), unique=True, nullable=False),
-    Column('email', String(128), unique=True, nullable=False),
+    "Users", _metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("email", String(128), unique=True, nullable=False),
+    Column("login", String(64), unique=True, nullable=False),
+    Column("hpassword", String(256), nullable=True),
 )
 
 Documents = Table(
-    'Documents', _metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('title', String(256), nullable=False),
-    Column('content', Text, nullable=True),
-    Column('owner_id', Integer, ForeignKey('Users.id'), nullable=False),
+    "Documents", _metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("name", String(256), nullable=False),
+    Column("path", Text, nullable=False),
+    Column("ownerid", Integer, ForeignKey("Users.id"), nullable=False),
+    Column("sha256", String(64), nullable=True),
+    Column("size", Integer, nullable=False),
+    Column("creation", String(64), nullable=True),
 )
 
 Versions = Table(
-    'Versions', _metadata,
-    Column('id', Integer, primary_key=True, autoincrement=True),
-    Column('document_id', Integer, ForeignKey('Documents.id'), nullable=False),
-    Column('version_number', Integer, nullable=False),
-    Column('content', Text, nullable=False),
+    "Versions", _metadata,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("documentid", Integer, ForeignKey("Documents.id"), nullable=False),
+    Column("link", String(128), unique=True, nullable=False),
+    Column("intended_for", String(64), nullable=False),
+    Column("secret", String(128), nullable=False),
+    Column("method", String(64), nullable=False),
+    Column("position", String(64), nullable=True),
+    Column("path", Text, nullable=False),
 )
 
 def get_engine():
@@ -65,6 +73,21 @@ def seed_documents(documents):
     """
     engine = get_engine()
     with engine.begin() as conn:
+        # Insert owning user (required for FK + ownership checks)
+        conn.execute(
+            text(
+                """
+                INSERT INTO Users (id, email, login, hpassword)
+                VALUES (:id, :email, :login, :hpassword)
+                """
+            ),
+            {
+                "id": 1,
+                "email": "test@example.com",
+                "login": "testuser",
+                "hpassword": "dummyhash",
+            },
+        )
         for doc in documents:
             try:
                 conn.execute(Documents.insert().values(**doc))

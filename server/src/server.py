@@ -111,6 +111,7 @@ def create_app():
     # --- RMAP Setup ---
     # RMAP is a heavy crypto dependency; avoid importing it during unit tests
     test_mode = os.environ.get("TEST_MODE", "0") in ("1", "true", "True")
+    app.config["TEST_MODE"] = test_mode
 
     if not test_mode:
         from rmap.identity_manager import IdentityManager
@@ -916,7 +917,7 @@ def create_app():
 
         try:
             with get_engine().begin() as conn:
-                conn.execute(
+                res = conn.execute(
                     text(
                         """INSERT INTO Versions (documentid, link, intended_for, secret, method, position, path)
                         VALUES (:documentid, :link, :intended_for, :secret, :method, :position, :path)"""
@@ -928,10 +929,15 @@ def create_app():
                         "secret": secret,
                         "method": method,
                         "position": position or "",
-                        "path": dest_path,
+                        "path": str(dest_path),
                     },
                 )
-                vid = int(conn.execute(text("SELECT LAST_INSERT_ID()")).scalar())
+
+                # SQLite (TEST_MODE) does not support LAST_INSERT_ID()
+                if app.config.get("TEST_MODE"):
+                    vid = int(res.lastrowid)
+                else:
+                    vid = int(conn.execute(text("SELECT LAST_INSERT_ID()")).scalar())
         except Exception as e:
             try:
                 dest_path.unlink(missing_ok=True)
@@ -1270,12 +1276,29 @@ def create_app():
 
 # WSGI entrypoint
 app = create_app()
+
 def get_engine():
-        eng = app.config.get("_ENGINE")
+    """
+    Central database access point.
+
+    - In TEST_MODE: reuse a single in-memory SQLite mock engine
+    - Otherwise: use the production MySQL database
+    """
+    # --- TEST MODE ---
+    if app.config.get("TEST_MODE"):
+        eng = app.config.get("_MOCK_ENGINE")
         if eng is None:
-            eng = create_engine(db_url(), pool_pre_ping=True, future=True)
-            app.config["_ENGINE"] = eng
+            from src.mock_db import get_engine as mock_get_engine
+            eng = mock_get_engine()
+            app.config["_MOCK_ENGINE"] = eng
         return eng
+
+    # --- PRODUCTION MODE ---
+    eng = app.config.get("_ENGINE")
+    if eng is None:
+        eng = create_engine(db_url(), pool_pre_ping=True, future=True)
+        app.config["_ENGINE"] = eng
+    return eng
 
 # --- DB engine only (no Table metadata) ---
 def db_url() -> str:
