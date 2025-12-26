@@ -7,7 +7,7 @@ import hashlib
 import fitz  # PyMuPDF
 from cryptography.fernet import Fernet, InvalidToken
 
-from watermarking_method import (
+from src.watermarking_method import (
     WatermarkingMethod,
     PdfSource,
     load_pdf_bytes,

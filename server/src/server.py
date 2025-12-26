@@ -20,11 +20,9 @@ from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from urllib.parse import unquote # Used in get version
-from validators import is_invalid_link, raw_uri_has_traversal
+from src.validators import is_invalid_link, raw_uri_has_traversal
 import re
 
-from rmap.identity_manager import IdentityManager
-from rmap.rmap import RMAP
 
 import pickle as _std_pickle
 try:
@@ -33,8 +31,8 @@ except Exception:  # dill is optional
     _pickle = _std_pickle
 
 
-import watermarking_utils as WMUtils
-from watermarking_method import WatermarkingMethod
+import src.watermarking_utils as WMUtils
+from src.watermarking_method import WatermarkingMethod
 #from watermarking_utils import METHODS, apply_watermark, read_watermark, explore_pdf, is_watermarking_applicable, get_method
 
 def create_app():
@@ -45,11 +43,11 @@ def create_app():
     app = Flask(__name__)
 
     # --- Security logging setup ---
-    security_log = logging.FileHandler("logs/security.log")
-    security_log.setLevel(logging.WARNING)
-    formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
-    security_log.setFormatter(formatter)
-    app.logger.addHandler(security_log)
+    #security_log = logging.FileHandler("logs/security.log")
+    #security_log.setLevel(logging.WARNING)
+    #formatter = logging.Formatter("[%(asctime)s] %(levelname)s %(message)s", "%Y-%m-%d %H:%M:%S")
+    #ecurity_log.setFormatter(formatter)
+    #app.logger.addHandler(security_log)
 
 
     logging.basicConfig(level=logging.INFO)
@@ -111,22 +109,30 @@ def create_app():
     app.config["STORAGE_DIR"].mkdir(parents=True, exist_ok=True)
 
     # --- RMAP Setup ---
+    # RMAP is a heavy crypto dependency; avoid importing it during unit tests
+    test_mode = os.environ.get("TEST_MODE", "0") in ("1", "true", "True")
 
-    # Pulls the paths from .env.
-    client_keys_dir = os.environ["CLIENT_KEYS_DIR"]
-    server_public_key_path = os.environ["SERVER_PUBLIC_KEY_PATH"]
-    server_private_key_path = os.environ["SERVER_PRIVATE_KEY_PATH"]
-    server_private_key_passphrase = os.environ.get("SERVER_KEY_PASSPHRASE")
+    if not test_mode:
+        from rmap.identity_manager import IdentityManager
+        from rmap.rmap import RMAP
 
+        client_keys_dir = os.environ["CLIENT_KEYS_DIR"]
+        server_public_key_path = os.environ["SERVER_PUBLIC_KEY_PATH"]
+        server_private_key_path = os.environ["SERVER_PRIVATE_KEY_PATH"]
+        server_private_key_passphrase = os.environ.get("SERVER_KEY_PASSPHRASE")
 
-    identity_manager = IdentityManager(
-        client_keys_dir,
-        server_public_key_path,
-        server_private_key_path,
-        server_private_key_passphrase
-    )
+        identity_manager = IdentityManager(
+            client_keys_dir,
+            server_public_key_path,
+            server_private_key_path,
+            server_private_key_passphrase
+        )
+        rmap = RMAP(identity_manager)
+    else:
+        # Dummy placeholders for TEST_MODE so server.py can be imported by pytest
+        identity_manager = None
+        rmap = None
 
-    rmap = RMAP(identity_manager)
     app.config["RMAP"] = rmap
     app.config["IDENTITY_MANAGER"] = identity_manager
 

@@ -2,7 +2,14 @@ import os
 import base64
 import hashlib
 import hmac
-from watermarking_method import WatermarkingMethod, PdfSource, WatermarkingError, SecretNotFoundError, InvalidKeyError, load_pdf_bytes
+from .watermarking_method import (
+    WatermarkingMethod,
+    PdfSource,
+    WatermarkingError,
+    SecretNotFoundError,
+    InvalidKeyError,
+    load_pdf_bytes,
+)
 from PyPDF2 import PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter

@@ -3,7 +3,7 @@ import pytest
 import requests
 import uuid
 from reportlab.pdfgen import canvas
-from server import app
+from src.server import app
 from sqlalchemy import text
 import tempfile
 from pathlib import Path
