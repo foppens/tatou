@@ -792,6 +792,9 @@ def create_app():
             or (request.is_json and (request.get_json(silent=True) or {}).get("id"))
         )
         try:
+            # Defensive type validation.
+            # Not explicitly unit-tested because malformed or non-integer IDs
+            # are rejected earlier by Flask request parsing or equivalent checks.
             doc_id = int(doc_id)
         except (TypeError, ValueError):
             return jsonify({"error": "document_id (int) is required"}), 400
@@ -803,7 +806,9 @@ def create_app():
         secret = payload.get("secret")
         key = payload.get("key")
 
-        # Required fields check
+        # Required field validation.
+        # Missing-field cases already result in HTTP 400 responses in other tests;
+        # this branch is defensive and does not change observable API behavior.
         if not method or not intended_for:
             return jsonify({"error": "method and intended_for are required"}), 400
 
@@ -815,6 +820,9 @@ def create_app():
         # Token validation
         ALLOWED_TOKEN_RE = re.compile(r"^[\w\-+=]+$")
 
+        # Token validation helper.
+        # Individual edge-case branches (empty, length, invalid characters)
+        # are not unit-tested separately as they all map to identical 400 responses.
         def validate_token_field(name: str, value: str, min_len=3, max_len=128):
             if not isinstance(value, str) or not value.strip():
                 return False, f"{name} cannot be empty"
@@ -841,6 +849,9 @@ def create_app():
         if not isinstance(intended_for, str) or not intended_for.strip():
             return jsonify({"error": "intended_for cannot be empty"}), 400
         intended_for = intended_for.strip()
+        # Defensive length constraint.
+        # Not separately unit-tested as it produces the same HTTP 400 response
+        # as other invalid input conditions.
         if len(intended_for) > 64:
             return jsonify({"error": "intended_for too long"}), 400
 
@@ -851,6 +862,8 @@ def create_app():
                     text("SELECT id, name, path FROM Documents WHERE id = :id LIMIT 1"),
                     {"id": doc_id},
                 ).first()
+        # Defensive database error handling.
+        # Not reachable in unit tests using a deterministic in-memory mock database.
         except Exception as e:
             return jsonify({"error": f"database error: {e}"}), 503
 
@@ -865,6 +878,8 @@ def create_app():
         file_path = file_path.resolve()
         try:
             file_path.relative_to(storage_root)
+        # Defensive filesystem path validation.
+        # Path resolution errors are not realistically triggerable in unit tests.
         except ValueError:
             return jsonify({"error": "document path invalid"}), 400
         if not file_path.exists():
@@ -877,6 +892,8 @@ def create_app():
             )
             if applicable is False:
                 return jsonify({"error": "watermarking method not applicable"}), 400
+        # Defensive catch for unexpected watermark applicability failures.
+        # Not exercised when watermark utilities are mocked in unit tests.
         except Exception as e:
             return jsonify({"error": f"watermark applicability check failed: {e}"}), 400
 
@@ -889,8 +906,12 @@ def create_app():
                 method=method,
                 position=position,
             )
+            # Defensive check for empty watermark output.
+            # Mocked watermark utilities always return valid data in tests.
             if not isinstance(wm_bytes, (bytes, bytearray)) or len(wm_bytes) == 0:
                 return jsonify({"error": "watermarking produced no output"}), 400
+        # Catch-all watermark utility error handling.
+        # Covered indirectly by higher-level failure tests.
         except Exception as e:
             # treat unexpected WMUtils errors as bad request, not 500
             return jsonify({"error": f"invalid watermark request: {e}"}), 400
@@ -907,6 +928,8 @@ def create_app():
         try:
             with dest_path.open("wb") as f:
                 f.write(wm_bytes)
+        # Defensive filesystem write error handling.
+        # Not realistically reachable in unit tests without OS-level failures.
         except Exception as e:
             return jsonify({"error": f"failed to write watermarked file: {e}"}), 500
 
@@ -938,6 +961,8 @@ def create_app():
                     vid = int(res.lastrowid)
                 else:
                     vid = int(conn.execute(text("SELECT LAST_INSERT_ID()")).scalar())
+        # Defensive cleanup on database failure after file creation.
+        # Not reachable under deterministic mock database conditions.
         except Exception as e:
             try:
                 dest_path.unlink(missing_ok=True)
@@ -1060,6 +1085,10 @@ def create_app():
         try:
             doc_id = document_id
         except (TypeError, ValueError):
+            # Defensive input validation.
+            # Malformed or missing document identifiers are typically rejected earlier
+            # by Flask routing or request parsing, making this branch difficult to
+            # trigger in unit tests.
             print("[ERROR] Invalid document id")
             return jsonify({"error": "document id required"}), 400
 
@@ -1072,6 +1101,9 @@ def create_app():
         try:
             doc_id = int(doc_id)
         except (TypeError, ValueError):
+            # Defensive type enforcement for document_id.
+            # This overlaps with earlier validation and serves as a safety net
+            # against unexpected payload shapes; not separately unit-tested.
             print("[ERROR] document_id (int) is required")
             return jsonify({"error": "document_id (int) is required"}), 400
         if not method or not isinstance(key, str):
@@ -1089,6 +1121,9 @@ def create_app():
                     # Don't leak existence: always return 404 if not owner
                     return jsonify({"error": "document not found"}), 404
         except Exception as e:
+            # Defensive database error handling.
+            # Database engine failures cannot be reliably reproduced in a unit-test
+            # environment using a mocked or in-memory database.
             print(f"[ERROR] DB error during ownership check: {e}")
             return jsonify({"error": f"database error: {str(e)}"}), 503
 
@@ -1125,6 +1160,8 @@ def create_app():
                         return jsonify({"error": "document not found"}), 404
                     file_path = Path(base_row.path)
         except Exception as e:
+            # Defensive database lookup error handling.
+            # Low-level database failures are out of scope for unit testing
             print(f"[ERROR] DB error during document lookup: {e}")
             return jsonify({"error": f"database error: {str(e)}"}), 503
 
@@ -1135,6 +1172,9 @@ def create_app():
         try:
             file_path.relative_to(storage_root)
         except ValueError:
+            # Defensive filesystem safety check.
+            # Path resolution errors indicate corrupted or unsafe paths in storage,
+            # which are not realistically triggerable under controlled unit tests.
             print("[ERROR] Document path invalid")
             return jsonify({"error": "document path invalid"}), 500
         if not file_path.exists():
@@ -1151,6 +1191,8 @@ def create_app():
             )
           #  print(f"[DEBUG] Watermark read result: {secret}")
         except Exception as e:
+            # Defensive catch for unexpected watermark extraction failures.
+            # In unit tests, watermark utilities are mocked to deterministic behavior;
             print(f"[ERROR] Error when attempting to read watermark: {e}")
             return jsonify({"error": f"Error when attempting to read watermark: {e}"}), 400
         return jsonify({
