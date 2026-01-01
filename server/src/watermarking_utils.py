@@ -36,14 +36,14 @@ import json
 import os
 import re
 
-from watermarking_method import (
+from src.watermarking_method import (
     PdfSource,
     WatermarkingMethod,
     load_pdf_bytes,
 )
-from pj_watermarking_method import MyWatermarkingMethod
-from johan_watermark import LogoWatermark
-from axel_watermark import AxelWatermark
+from src.pj_watermarking_method import MyWatermarkingMethod
+from src.johan_watermark import LogoWatermark
+from src.axel_watermark import AxelWatermark
 
 # --------------------
 # Method registry

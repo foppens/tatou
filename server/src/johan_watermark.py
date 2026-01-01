@@ -2,9 +2,15 @@ import fitz  # PyMuPDF
 from pathlib import Path
 import hashlib
 import secrets
-from watermarking_method import WatermarkingMethod, PdfSource, load_pdf_bytes, WatermarkingError, SecretNotFoundError, InvalidKeyError
 import pytest
-
+from src.watermarking_method import (
+    WatermarkingMethod,
+    PdfSource,
+    WatermarkingError,
+    SecretNotFoundError,
+    InvalidKeyError,
+    load_pdf_bytes,
+)
 
 class LogoWatermark(WatermarkingMethod):
     name = "logo-watermark"
