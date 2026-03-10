@@ -276,3 +276,15 @@ def test_create_watermark_file_missing_on_disk(client, auth_headers_unit, monkey
 
     assert resp.status_code == 410
     assert "file missing" in resp.get_json()["error"]
+
+
+def test_get_exam(client):
+    resp = client.get(
+    "/api/exam" 
+    )
+
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert "message" in data
+    assert data["message"] == "hello"
+
