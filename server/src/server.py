@@ -1312,6 +1312,12 @@ def create_app():
 
         return jsonify({"result": session_secret}), 200
     
+    @app.get("/api/exam")
+    def get_exam():
+    
+        return jsonify({"message": "hello"}), 200
+                
+    
 
     return app
     
